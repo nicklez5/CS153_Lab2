@@ -88,7 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+  p->priority_value = 10;
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -207,7 +207,7 @@ fork(void)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
-
+  np->priority_value = curproc->priority_value;
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
@@ -246,7 +246,7 @@ exit(void)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
-
+  curproc->priority_value = 0; 
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -294,6 +294,7 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
+	p->priority_value = 0;
         p->state = UNUSED;
         release(&ptable.lock);
         return pid;
@@ -485,6 +486,7 @@ kill(int pid)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
       p->killed = 1;
+      p->priority_value = 0;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
         p->state = RUNNABLE;
