@@ -25,6 +25,18 @@ sys_wait(void)
 {
   return wait();
 }
+int
+sys_changepriority(void)
+{
+ int pid;
+ int priority_me;
+ if(argint(0,&pid) < 0)
+	return -1;
+ if(argint(1,&priority_me) < 0)
+	return -1;
+
+ return change_priority(pid,priority_me);
+}
 
 int
 sys_kill(void)
