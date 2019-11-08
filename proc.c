@@ -207,7 +207,7 @@ fork(void)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
-  //np->priority_value = curproc->priority_value;
+  np->priority_value = curproc->priority_value;
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
@@ -246,7 +246,7 @@ exit(void)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
-  //curproc->priority_value = 0; 
+  curproc->priority_value = 31; 
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -294,7 +294,11 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
-	//p->priority_value = 0;
+
+	//its a dead child therefore set the priority value to the lowest one
+	//CS153 Lab 2
+	p->priority_value = 31;
+
         p->state = UNUSED;
         release(&ptable.lock);
         return pid;
@@ -311,28 +315,7 @@ wait(void)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
 }
-void 
-sort_me(void)
-{ 
-  struct proc *p;
-  struct proc *j;
-  struct proc *a;
-  struct cpu *c = mycpu();
-  c->proc = 0;
-  acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-   for(j = ptable.proc + 1; j < &ptable.proc[NPROC]; j++){
-    if(p->state != RUNNABLE)
-      continue;
-    if(p->priority_value < j->priority_value){
-      a = ptable.proc[p];
-      ptable.proc[p] = ptable.proc[j];
-      ptable.proc[j] = a;
-    }
-   }
-  }
-  release(&ptable.lock);
-}   
+   
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -352,7 +335,8 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
     
-    struct proc *tempP = NULL;
+     
+    struct proc *tempP;
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -362,9 +346,13 @@ scheduler(void)
       for(p1 = ptable.proc ; p1 < &ptable.proc[NPROC]; p1++){
  	if(p1->state != RUNNABLE)
 	 continue;
+	
+   	//CS153 Lab 2
+	//Picks the lowest priority value and sets temp P to that 
 	if(tempP->priority_value > p1->priority_value)
 	 tempP = p1;
       }
+      //Runs the lowest process
       p = tempP;
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -503,21 +491,19 @@ wakeup(void *chan)
   release(&ptable.lock);
 }
 
-//Initialize back to regular priority
+
+
+//CS153 Lab2
 int
-change_priority(int pid,int xyz)
+setpriority(int xyz)
 {
-  acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-     if(p->pid == pid){
-       p->priority_value = xyz;
-       break;
-     }
-  }
-  release(&ptable.lock);
-  return pid;
-   
-}
+
+ acquire(&ptable.lock);
+ myproc()->priority_value = xyz;
+ release(&ptable.lock);
+ return 0; 
+}   
+
 // Kill the process with the given pid.
 // Process won't exit until it returns
 // to user space (see trap in trap.c).
@@ -530,7 +516,7 @@ kill(int pid)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
       p->killed = 1;
-      p->priority_value = 0;
+      //p->priority_value = 0;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
         p->state = RUNNABLE;
